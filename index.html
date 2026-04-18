@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CineMatch — Find Your Next Watch</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NOISE OVERLAY -->
+  <div class="noise-overlay"></div>
+
+  <!-- ========== SCREEN 1: LANDING ========== -->
+  <section id="screen-landing" class="screen active">
+    <div class="landing-bg">
+      <div class="film-strip top"></div>
+      <div class="film-strip bottom"></div>
+      <div class="gradient-orb orb1"></div>
+      <div class="gradient-orb orb2"></div>
+      <div class="gradient-orb orb3"></div>
+    </div>
+    <div class="landing-content">
+      <div class="logo-wrap">
+        <span class="logo-icon">🎬</span>
+        <h1 class="logo-text">CineMatch</h1>
+      </div>
+      <p class="tagline">Stop scrolling. Start watching.</p>
+      <p class="sub-tagline">Answer a few questions, rate some titles, and we'll find your perfect match.</p>
+      <button class="btn-primary" id="btn-start">
+        <span>Find My Match</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <p class="step-hint">3 quick steps · takes ~2 minutes</p>
+    </div>
+  </section>
+
+  <!-- ========== SCREEN 2: QUIZ ========== -->
+  <section id="screen-quiz" class="screen">
+    <div class="quiz-header">
+      <span class="logo-small">🎬 CineMatch</span>
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="quiz-progress"></div></div>
+        <span class="progress-label" id="quiz-label">1 / 6</span>
+      </div>
+    </div>
+    <div class="quiz-body" id="quiz-body"></div>
+  </section>
+
+  <!-- ========== SCREEN 3: RATING ========== -->
+  <section id="screen-rating" class="screen">
+    <div class="quiz-header">
+      <span class="logo-small">🎬 CineMatch</span>
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="rating-progress"></div></div>
+        <span class="progress-label" id="rating-label">Calibrating…</span>
+      </div>
+    </div>
+    <div class="rating-intro" id="rating-intro">
+      <h2>Now let's calibrate<br/><span class="accent">your taste</span></h2>
+      <p>Rate a few titles you've seen. The more honest, the better the match.</p>
+      <button class="btn-primary" id="btn-start-rating">Let's Rate</button>
+    </div>
+    <div class="rating-body hidden" id="rating-body"></div>
+  </section>
+
+  <!-- ========== SCREEN 4: RESULTS ========== -->
+  <section id="screen-results" class="screen">
+    <div class="results-header">
+      <span class="logo-small">🎬 CineMatch</span>
+      <button class="btn-ghost" id="btn-restart">Start Over</button>
+    </div>
+    <div class="results-body">
+      <div class="results-hero">
+        <p class="results-eyebrow">Your Perfect Match</p>
+        <h2 class="results-title" id="res-title">—</h2>
+        <div class="results-meta" id="res-meta"></div>
+      </div>
+      <div class="results-card-wrap">
+        <div class="results-card" id="res-card">
+          <div class="card-poster" id="res-poster"></div>
+          <div class="card-info">
+            <p class="card-desc" id="res-desc"></p>
+            <div class="match-score-wrap">
+              <span class="match-label">Match Score</span>
+              <div class="match-bar"><div class="match-fill" id="res-score-bar"></div></div>
+              <span class="match-pct" id="res-score-pct">0%</span>
+            </div>
+            <div class="why-wrap" id="res-why"></div>
+          </div>
+        </div>
+      </div>
+      <div class="also-like">
+        <h3>You Might Also Like</h3>
+        <div class="also-grid" id="also-grid"></div>
+      </div>
+      <button class="btn-primary center-btn" id="btn-restart2">🔄 Try Again</button>
+    </div>
+  </section>
+
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
