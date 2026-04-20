@@ -4,7 +4,7 @@ const IMAGE_BASE = 'https://image.tmdb.org/t/p/';
 const SIZES = { sm: 'w185', md: 'w342', lg: 'w500', xl: 'w780' } as const;
 
 // ── Set your TMDB API key here (free at themoviedb.org/settings/api) ────────
-export const TMDB_API_KEY = '';
+export const TMDB_API_KEY = import.meta.env.VITE_TMDB_KEY ?? ''
 export const TMDB_ACCESS_TOKEN = '';
 
 const cache = new Map<number, string | null>();
