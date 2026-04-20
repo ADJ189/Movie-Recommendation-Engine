@@ -1,141 +1,88 @@
-# 🎬 CineMatch v2
+# 🎬 CineMatch v3
 
-**Stop scrolling. Start watching.**
-
-A smart movie & TV show recommendation web app with **real TMDB poster images**, a live **Navier-Stokes fluid dynamics background**, and a personalised taste engine.
+Buttery-smooth movie & TV recommendation app. Built with **Svelte 5 + TypeScript + Vite**.
 
 ---
 
-## ✨ What's New in v2
+## Stack
 
-| Feature | v1 | v2 |
-|---|---|---|
-| Movie posters | Emoji placeholders | Real TMDB images |
-| Background | Static gradient orbs | Live fluid dynamics (Navier-Stokes) |
-| Data source | Hardcoded | TMDB API + pre-fetched paths |
-| Interactions | Buttons only | Fluid responds to mouse/touch |
-| Poster fallback | Emoji | Gradient + emoji if no API key |
+| Layer | Tech |
+|---|---|
+| Framework | Svelte 5 (Runes) |
+| Language | TypeScript |
+| Build | Vite 5 |
+| Styling | Scoped CSS (no Tailwind bloat) |
+| Images | TMDB CDN (no API key required for posters) |
+| Background | Custom Navier-Stokes fluid sim (Canvas2D) |
 
----
-
-## 🖼️ Getting Real Poster Images (TMDB API)
-
-The app **works without an API key** — all 30 poster paths are pre-baked in. But with a key you get live data fetching.
-
-### Get a free TMDB key (takes 30 seconds)
-1. Create a free account at [themoviedb.org](https://www.themoviedb.org/signup)
-2. Go to **Settings → API → Create → Developer**
-3. Copy your **API Key (v3 auth)** or **Read Access Token (v4)**
-
-### Add it to the app
-Open `js/data.js` and fill in one of these:
-
-```javascript
-const TMDB_CONFIG = {
-  API_KEY: "your_api_key_here",         // v3 key
-  // OR
-  ACCESS_TOKEN: "your_token_here",      // v4 Bearer token
-  ...
-};
-```
-
-> **Note:** TMDB requires attribution. The app already displays the TMDB logo in the results screen.
+**Bundle size:** ~78 KB JS (gzip: 29 KB) · ~21 KB CSS (gzip: 4 KB)
 
 ---
 
-## 🌊 Fluid Dynamics
-
-The background uses a real **Navier-Stokes fluid simulation** (`js/fluid.js`):
-
-- **Velocity field** — 2D incompressible fluid solved with Gauss-Seidel relaxation
-- **Dye advection** — Three-channel RGB dye carried by the velocity field
-- **Auto-swirl** — Periodic force injection creates organic motion
-- **Mouse/touch reactive** — Move your cursor to stir the fluid
-- **Click interaction** — Hold/tap for stronger forces
-- **Color modes** — Switches between gold (quiz), purple (rating), and cinema (landing/results)
-- **Quiz interaction** — Selecting an answer bursts gold fluid
-- **Star rating** — Each star rating fires a unique colored burst
-
----
-
-## 🗂️ File Structure
-
-```
-cinematch/
-├── index.html          ← Single-page app (4 screens)
-├── css/
-│   └── style.css       ← Full styles — luxury cinema aesthetic
-├── js/
-│   ├── data.js         ← TMDB config, catalog (30 titles), quiz, rating pool
-│   ├── fluid.js        ← Navier-Stokes fluid simulation (pure JS/Canvas2D)
-│   ├── engine.js       ← Weighted recommendation engine
-│   └── app.js          ← App controller, TMDB fetching, UI logic
-└── README.md
-```
-
----
-
-## 🚀 Running Locally
+## Running Locally
 
 ```bash
-# No build step — open directly or serve:
-npx serve .
-# or
-python3 -m http.server 8080
+npm install
+npm run dev      # dev server at localhost:5173
+npm run build    # production build → dist/
+npm run preview  # preview production build
 ```
-
-> TMDB API calls require HTTP (localhost works fine). For GitHub Pages: HTTPS is already handled.
 
 ---
 
-## 📦 Upload to GitHub
+## Project Structure
+
+```
+src/
+├── main.ts                      # Entry point
+├── App.svelte                   # Root router + grain overlay
+├── stores/
+│   └── appState.svelte.ts       # Svelte 5 $state global store
+├── lib/
+│   ├── types.ts                 # TypeScript interfaces
+│   ├── data.ts                  # 30-title catalog + quiz questions
+│   ├── engine.ts                # Recommendation engine
+│   ├── fluid.ts                 # Navier-Stokes fluid simulation
+│   └── tmdb.ts                  # TMDB image URL helpers
+└── components/
+    ├── FluidCanvas.svelte        # WebGL-like fluid background
+    ├── Landing.svelte            # Hero screen
+    ├── Quiz.svelte               # 6-question preference quiz
+    ├── Rating.svelte             # Taste calibration (star ratings)
+    └── Results.svelte            # Match results + runner-ups
+```
+
+---
+
+## Adding a TMDB API Key (optional)
+
+All 30 poster paths are pre-baked in — the app works without a key, loading images directly from `image.tmdb.org`. To enable live data fetching:
+
+1. Get a free key at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
+2. Open `src/lib/tmdb.ts` and add it:
+```ts
+export const TMDB_API_KEY = 'your_key_here';
+```
+
+---
+
+## Deploy to GitHub Pages
 
 ```bash
-git init
-git add .
-git commit -m "Initial commit — CineMatch v2 with TMDB + fluid dynamics"
-git remote add origin https://github.com/YOUR_USERNAME/cinematch.git
-git branch -M main
-git push -u origin main
+npm run build
+# Push the dist/ folder, or use gh-pages:
+npx gh-pages -d dist
 ```
 
-Enable **GitHub Pages** under `Settings → Pages → main / root` for a free live URL.
-
-### Files to upload (all of them)
-```
-index.html
-css/style.css
-js/data.js
-js/fluid.js
-js/engine.js
-js/app.js
-README.md
-.gitignore
-```
-
-### Files to delete from v1 (if upgrading)
-The old v1 had no `js/fluid.js` — just add the new files. Replace all others.
+Or just push the whole repo and configure Pages to use GitHub Actions with the Vite template.
 
 ---
 
-## 🧠 How the Recommendation Engine Works
+## How the Engine Works
 
-1. **Quiz** → genre + vibe affinity map built from 6 answers  
-2. **Ratings** → Known titles (e.g. "The Dark Knight") carry genre signals; high ratings boost, low ratings reduce affinity  
-3. **Scoring** each catalog item on:
-   - Genre affinity ×30
-   - Vibe affinity ×20
-   - Format match (movie/series) ±20
-   - Era match ±15
-   - Language preference ±10/−20
-   - Company context ±10
-   - Intrinsic quality (TMDB rating) ×5
-4. **Sort + present** top match with reasons, + 4 runner-ups
-
----
-
-## 📄 License
-
-MIT — free to use, modify, and deploy.
+1. **Quiz** — 6 answers build `genreAffinity` + `vibeAffinity` maps  
+2. **Ratings** — Known titles carry genre signals; 5★ boosts, 1★ penalises  
+3. **Scoring** — Every catalog item scored on genre (×30), vibe (×20), format (±20), era (±15), language (±10/−20), company (±10), quality (×5)  
+4. **Output** — Sorted by score, top match with reasons + 4 runner-ups
 
 > This product uses the TMDB API but is not endorsed or certified by TMDB.

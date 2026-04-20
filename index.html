@@ -1,158 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>CineMatch — Find Your Perfect Watch</title>
-  <link rel="stylesheet" href="css/style.css"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,300&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
-</head>
-<body>
-
-<!-- ══════════════ FLUID CANVAS (global background layer) ══════════════════ -->
-<canvas id="fluid-canvas" aria-hidden="true"></canvas>
-<div class="noise-layer" aria-hidden="true"></div>
-
-<!-- ══════════════ SCREEN 1 · LANDING ══════════════════════════════════════ -->
-<section id="screen-landing" class="screen active">
-  <div class="landing-inner">
-
-    <div class="logo-block">
-      <div class="logo-filmstrip">
-        <span class="filmhole"></span><span class="filmhole"></span>
-        <span class="filmhole"></span><span class="filmhole"></span>
-      </div>
-      <h1 class="logo-text">CineMatch</h1>
-      <div class="logo-filmstrip">
-        <span class="filmhole"></span><span class="filmhole"></span>
-        <span class="filmhole"></span><span class="filmhole"></span>
-      </div>
-    </div>
-
-    <p class="landing-tagline">Stop scrolling.<br/>Start watching.</p>
-    <p class="landing-sub">Answer 6 questions, rate a few titles, and we'll find your perfect match — powered by real movie data.</p>
-
-    <button class="btn-cta" id="btn-start">
-      <span class="btn-cta-label">Find My Match</span>
-      <span class="btn-cta-arrow">→</span>
-    </button>
-
-    <div class="landing-pills">
-      <span class="lpill">🎬 30 titles</span>
-      <span class="lpill">⚡ 2 minutes</span>
-      <span class="lpill">🎯 Personalised</span>
-    </div>
-
-    <p class="tmdb-note">
-      Data &amp; images from
-      <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>
-    </p>
-  </div>
-</section>
-
-<!-- ══════════════ SCREEN 2 · QUIZ ═════════════════════════════════════════ -->
-<section id="screen-quiz" class="screen">
-  <header class="app-header">
-    <span class="logo-sm">CineMatch</span>
-    <div class="progress-row">
-      <div class="prog-track"><div class="prog-fill" id="quiz-progress"></div></div>
-      <span class="prog-label" id="quiz-label">1 / 6</span>
-    </div>
-  </header>
-  <div class="quiz-body" id="quiz-body"></div>
-</section>
-
-<!-- ══════════════ SCREEN 3 · RATING ═══════════════════════════════════════ -->
-<section id="screen-rating" class="screen">
-  <header class="app-header">
-    <span class="logo-sm">CineMatch</span>
-    <div class="progress-row">
-      <div class="prog-track"><div class="prog-fill" id="rating-progress"></div></div>
-      <span class="prog-label" id="rating-label">Calibrating…</span>
-    </div>
-  </header>
-
-  <div id="rating-intro" class="rating-intro">
-    <div class="rating-intro-icon">🎯</div>
-    <h2>Calibrate <span class="accent">your taste</span></h2>
-    <p>Rate some titles you've seen. The more honest, the better your match. Haven't seen one? Just skip it.</p>
-    <button class="btn-cta" id="btn-start-rating">
-      <span class="btn-cta-label">Start Rating</span>
-      <span class="btn-cta-arrow">→</span>
-    </button>
-  </div>
-
-  <div id="rating-body" class="rating-body hidden"></div>
-</section>
-
-<!-- ══════════════ SCREEN 4 · RESULTS ══════════════════════════════════════ -->
-<section id="screen-results" class="screen">
-  <header class="app-header results-hdr">
-    <span class="logo-sm">CineMatch</span>
-    <button class="btn-ghost" id="btn-restart">↩ Start Over</button>
-  </header>
-
-  <!-- Loading state -->
-  <div id="results-loading" class="results-loading hidden">
-    <div class="loading-spinner"></div>
-    <p>Crunching your perfect match…</p>
-  </div>
-
-  <!-- Actual results -->
-  <div id="results-content" class="results-content hidden">
-
-    <!-- Blurred backdrop hero -->
-    <div class="res-backdrop-wrap">
-      <div id="res-backdrop" class="res-backdrop"></div>
-      <div class="res-backdrop-fade"></div>
-    </div>
-
-    <div class="results-inner">
-
-      <!-- Top pick -->
-      <div class="res-hero animate-in">
-        <p class="res-eyebrow">✦ Your Perfect Match ✦</p>
-        <h2 class="res-title" id="res-title">—</h2>
-        <div class="res-meta" id="res-meta"></div>
-      </div>
-
-      <div class="res-card animate-in" style="animation-delay:0.15s">
-        <div class="res-poster" id="res-poster"></div>
-        <div class="res-details">
-          <p class="res-desc" id="res-desc"></p>
-
-          <div class="match-row">
-            <span class="match-label">Match Score</span>
-            <div class="match-track"><div class="match-fill" id="res-score-bar"></div></div>
-            <span class="match-pct" id="res-score-pct">0%</span>
-          </div>
-
-          <div id="res-why" class="why-block"></div>
-
-          <div id="tmdb-attr" class="tmdb-attr"></div>
-        </div>
-      </div>
-
-      <!-- Runner-ups -->
-      <div class="also-section animate-in" style="animation-delay:0.3s">
-        <h3 class="also-heading">You Might Also Like</h3>
-        <div class="also-grid" id="also-grid"></div>
-      </div>
-
-      <button class="btn-cta center-btn animate-in" id="btn-restart2" style="animation-delay:0.45s">
-        <span class="btn-cta-label">🔄 Try Again</span>
-        <span class="btn-cta-arrow">→</span>
-      </button>
-
-    </div><!-- /results-inner -->
-  </div><!-- /results-content -->
-</section>
-
-<script src="js/data.js"></script>
-<script src="js/fluid.js"></script>
-<script src="js/engine.js"></script>
-<script src="js/app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <title>CineMatch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,700;12..96,800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://image.tmdb.org" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>
