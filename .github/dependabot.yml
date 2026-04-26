@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # This covers your Svelte 5, React, and TypeScript dependencies
+  - package-ecosystem: "npm" 
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Bundles all updates into one PR so your inbox doesn't explode
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+
+  # This keeps your GitHub Actions (CI/CD) updated
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
