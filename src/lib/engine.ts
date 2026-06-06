@@ -1,5 +1,5 @@
 // src/lib/engine.ts
-import type { CatalogItem, QuizAnswers, GenreAffinityMap } from './types';
+import type { CatalogItem, QuizAnswers, GenreAffinityMap, Genre, Vibe } from './types';
 import { CATALOG, TITLE_GENRE_SIGNALS, RATING_POOL } from './data';
 
 export interface ScoredItem extends CatalogItem {
@@ -65,7 +65,7 @@ export class RecommendationEngine {
       .map(([id]) => Number(id));
     for (const hId of loved) {
       const sigs = TITLE_GENRE_SIGNALS[hId] ?? [];
-      if (sigs.some(g => item.genres.includes(g as never) || item.vibe.includes(g as never))) {
+      if (sigs.some(g => item.genres.includes(g as Genre) || item.vibe.includes(g as Vibe))) {
         const title = RATING_POOL.find(t => t.id === hId)?.title;
         if (title) { out.push(`You loved ${title}`); break; }
       }
@@ -74,12 +74,15 @@ export class RecommendationEngine {
   }
 
   getResults(): ScoredItem[] {
-    const scored = CATALOG.map(item => ({ ...item, _score: this.scoreItem(item) }));
-    scored.sort((a, b) => b._score - a._score);
-    const maxScore = scored[0]?._score ?? 1;
-    return scored.map(item => ({
+    const scored = CATALOG.map(item => ({ ...item, _rawScore: this.scoreItem(item) }));
+    scored.sort((a, b) => b._rawScore - a._rawScore);
+
+    // Guard against 0/0 — ?? only catches null/undefined, not 0, so use ||
+    const maxScore = scored[0]?._rawScore || 1;
+
+    return scored.map(({ _rawScore, ...item }) => ({
       ...item,
-      matchPct: Math.min(99, Math.round((item._score / maxScore) * 100)),
+      matchPct: Math.min(99, Math.round((_rawScore / maxScore) * 100)),
       reasons: this.getReasonsFor(item),
     }));
   }
