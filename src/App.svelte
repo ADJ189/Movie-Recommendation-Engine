@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { appState } from './stores/appState.svelte';
+  import { appState } from './stores/appState.svelte.ts';
   import FluidCanvas from './components/FluidCanvas.svelte';
   import Landing from './components/Landing.svelte';
   import Quiz from './components/Quiz.svelte';
@@ -26,19 +26,19 @@
 <!-- Screen router with CSS transitions -->
 <div class="router" data-screen={appState.screen}>
   {#if appState.screen === 'landing'}
-    <div class="page" key="landing">
+    <div class="page">
       <Landing />
     </div>
   {:else if appState.screen === 'quiz'}
-    <div class="page" key="quiz">
+    <div class="page">
       <Quiz />
     </div>
   {:else if appState.screen === 'rating'}
-    <div class="page" key="rating">
+    <div class="page">
       <Rating />
     </div>
   {:else if appState.screen === 'results'}
-    <div class="page" key="results">
+    <div class="page">
       <Results />
     </div>
   {/if}
