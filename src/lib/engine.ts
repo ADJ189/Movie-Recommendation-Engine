@@ -1,34 +1,63 @@
 // src/lib/engine.ts
-import type { CatalogItem, QuizAnswers, GenreAffinityMap, Genre, Vibe } from './types';
-import { CATALOG, TITLE_GENRE_SIGNALS, RATING_POOL } from './data';
+//
+// Rewritten scoring model. The old engine let a flat "quality bonus" of up
+// to ±12.5 points drown out quiz signal worth only 20-30 points, so a
+// handful of high-TMDB-rated titles won almost every time regardless of
+// what the user answered. Fixed here by:
+//   1. Capping the quality bonus to ±3 (a tiebreaker, not a driver).
+//   2. Scoring against a live, hundreds-wide TMDB candidate pool instead of
+//      a fixed 30-item array, so there's actually room to differentiate.
+//   3. Weighting rating-derived taste signal higher than one-off quiz picks,
+//      since it's a stronger preference signal.
 
-export interface ScoredItem extends CatalogItem {
-  matchPct: number;
-  reasons: string[];
-}
+import type {
+  CatalogItem,
+  Genre,
+  GenreAffinityMap,
+  QuizAnswers,
+  RatingSeed,
+  RatingValue,
+  ScoredItem,
+  Vibe,
+} from './types';
+
+const VIBES = new Set<string>(['dark', 'light', 'intellectual', 'feelgood', 'epic']);
 
 export class RecommendationEngine {
   private genre: GenreAffinityMap = {};
   private vibe: GenreAffinityMap = {};
   private answers: QuizAnswers = {};
-  private ratings: Record<number, number> = {};
+  private ratings: Record<number, RatingValue> = {};
+  private ratedSeeds: RatingSeed[] = [];
 
   processQuiz(answers: QuizAnswers): void {
     this.answers = answers;
-    if (answers.mood)  this.genre[answers.mood] = (this.genre[answers.mood] ?? 0) + 1.0;
-    if (answers.vibe)  this.vibe[answers.vibe]  = (this.vibe[answers.vibe]  ?? 0) + 1.0;
+    if (answers.mood) this.genre[answers.mood] = (this.genre[answers.mood] ?? 0) + 1.0;
+    if (answers.vibe) this.vibe[answers.vibe] = (this.vibe[answers.vibe] ?? 0) + 1.0;
   }
 
-  processRatings(ratings: Record<number, number>): void {
+  /**
+   * `signalsBySeedId` maps each rated seed's id to the genre/vibe tags it
+   * represents, so the caller decides the taste vocabulary (kept out of the
+   * engine to avoid re-introducing a hardcoded catalog dependency here).
+   */
+  processRatings(
+    ratings: Record<number, RatingValue>,
+    seeds: RatingSeed[],
+    signalsBySeedId: Record<number, string[]>
+  ): void {
     this.ratings = ratings;
+    this.ratedSeeds = seeds;
+
     for (const [idStr, rating] of Object.entries(ratings)) {
       const id = Number(idStr);
-      const signals = TITLE_GENRE_SIGNALS[id] ?? [];
-      const weight = (rating - 3) / 2; // −1 to +1
+      const signals = signalsBySeedId[id] ?? [];
+      // -1 (hated) to +1 (loved), weighted higher than a single quiz tap
+      // since a rating reflects an actual watched title, not a mood guess.
+      const weight = ((rating - 3) / 2) * 0.7;
       for (const signal of signals) {
-        const isVibe = ['dark','light','intellectual','feelgood','epic'].includes(signal);
-        if (isVibe) this.vibe[signal]  = (this.vibe[signal]  ?? 0) + weight * 0.45;
-        else        this.genre[signal] = (this.genre[signal] ?? 0) + weight * 0.45;
+        if (VIBES.has(signal)) this.vibe[signal] = (this.vibe[signal] ?? 0) + weight;
+        else this.genre[signal] = (this.genre[signal] ?? 0) + weight;
       }
     }
   }
@@ -36,54 +65,88 @@ export class RecommendationEngine {
   private scoreItem(item: CatalogItem): number {
     let s = 0;
     for (const g of item.genres) s += (this.genre[g] ?? 0) * 30;
-    for (const v of item.vibe)   s += (this.vibe[v]  ?? 0) * 20;
+    for (const v of item.vibe) s += (this.vibe[v] ?? 0) * 20;
 
-    const { format, era, language, company } = this.answers;
-    if (format && format !== 'both')  s += item.type === format ? 20 : -15;
-    if (era    && era    !== 'any')   s += item.era === era ? 15 : -5;
-    if (language === 'english')       s += item.language === 'english' ? 10 : -20;
-    else if (language === 'subtitles') s += 5;
-    if (company && item.company.includes(company)) s += 10;
+    const { era, language } = this.answers;
+    if (era && era !== 'any') s += item.era === era ? 12 : -4;
+    if (language === 'english') s += item.language === 'en' ? 8 : -14;
+    else if (language === 'subtitles') s += item.language !== 'en' ? 4 : 0;
 
-    s += (item.rating - 7) * 5; // quality bonus
-    return Math.max(0, s);
+    // Quality is a tiebreaker only — capped so it can never override a
+    // genuine genre/vibe mismatch the way the old ±12.5 bonus did.
+    const qualityBonus = Math.max(-3, Math.min(3, (item.voteAverage - 6.5) * 1.2));
+    s += qualityBonus;
+
+    // Blend in external ratings if the OMDb connector resolved them.
+    if (item.externalRatings) {
+      const { rottenTomatoes, metacritic } = item.externalRatings;
+      if (rottenTomatoes !== undefined) s += ((rottenTomatoes - 60) / 40) * 2;
+      if (metacritic !== undefined) s += ((metacritic - 60) / 40) * 2;
+    }
+
+    // Mild popularity floor so obscure long-tail noise doesn't crowd out
+    // recognizable picks, without letting popularity dominate over taste.
+    s += Math.min(3, Math.log10(Math.max(1, item.popularity)) * 1.2);
+
+    return s;
   }
 
-  private getReasonsFor(item: CatalogItem): string[] {
+  private getReasonsFor(item: CatalogItem, signalsBySeedId: Record<number, string[]>): string[] {
     const out: string[] = [];
-    if (this.answers.mood && item.genres.includes(this.answers.mood))
-      out.push(`Matches your ${this.answers.mood} mood`);
-    if (this.answers.vibe && item.vibe.includes(this.answers.vibe))
+    if (this.answers.mood && item.genres.includes(this.answers.mood)) {
+      out.push(`Matches your ${this.answers.mood} pick`);
+    }
+    if (this.answers.vibe && item.vibe.includes(this.answers.vibe)) {
       out.push(`Has that ${this.answers.vibe} vibe`);
-    if (item.rating >= 8.5)
-      out.push(`Highly acclaimed (${item.rating}/10 on TMDB)`);
-    if (this.answers.format !== 'both' && item.type === this.answers.format)
-      out.push(item.type === 'movie' ? 'Perfect movie-night length' : 'Great for binge-watching');
-    // Taste signal from ratings
+    }
+    if (item.voteAverage >= 8) {
+      out.push(`Highly rated (${item.voteAverage.toFixed(1)}/10)`);
+    }
+
     const loved = Object.entries(this.ratings)
-      .filter(([,r]) => r >= 4)
+      .filter(([, r]) => r >= 4)
       .map(([id]) => Number(id));
     for (const hId of loved) {
-      const sigs = TITLE_GENRE_SIGNALS[hId] ?? [];
-      if (sigs.some(g => item.genres.includes(g as Genre) || item.vibe.includes(g as Vibe))) {
-        const title = RATING_POOL.find(t => t.id === hId)?.title;
-        if (title) { out.push(`You loved ${title}`); break; }
+      const sigs = signalsBySeedId[hId] ?? [];
+      const overlaps = sigs.some(
+        (g) => item.genres.includes(g as Genre) || item.vibe.includes(g as Vibe)
+      );
+      if (overlaps) {
+        const title = this.ratedSeeds.find((t) => t.id === hId)?.title;
+        if (title) {
+          out.push(`Similar to ${title}, which you loved`);
+          break;
+        }
       }
     }
+
+    if (out.length === 0) out.push('Popular pick that fits your filters');
     return out.slice(0, 3);
   }
 
-  getResults(): ScoredItem[] {
-    const scored = CATALOG.map(item => ({ ...item, _rawScore: this.scoreItem(item) }));
-    scored.sort((a, b) => b._rawScore - a._rawScore);
+  getResults(candidates: CatalogItem[], signalsBySeedId: Record<number, string[]>): ScoredItem[] {
+    // De-dupe by id (TMDB can return the same title across paginated pages).
+    const seen = new Set<number>();
+    const pool = candidates.filter((c) => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
 
-    // Guard against 0/0 — ?? only catches null/undefined, not 0, so use ||
-    const maxScore = scored[0]?._rawScore || 1;
+    const scored = pool.map((item) => ({ item, raw: this.scoreItem(item) }));
+    scored.sort((a, b) => b.raw - a.raw);
 
-    return scored.map(({ _rawScore, ...item }) => ({
+    const maxScore = scored[0]?.raw || 1;
+    const minScore = scored[scored.length - 1]?.raw ?? 0;
+    const range = Math.max(1, maxScore - minScore);
+
+    return scored.map(({ item, raw }) => ({
       ...item,
-      matchPct: Math.min(99, Math.round((_rawScore / maxScore) * 100)),
-      reasons: this.getReasonsFor(item),
+      // Normalize against the actual score spread of this query's pool
+      // (not a fixed 0-99 clamp), so match% meaningfully separates results
+      // instead of clustering everything near 99.
+      matchPct: Math.max(1, Math.min(99, Math.round(((raw - minScore) / range) * 99))),
+      reasons: this.getReasonsFor(item, signalsBySeedId),
     }));
   }
 }

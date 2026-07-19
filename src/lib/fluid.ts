@@ -1,4 +1,4 @@
-// src/lib/fluid.ts — Optimised Navier-Stokes on Canvas2D
+// src/lib/fluid.ts — Optimised Navier-Stokes fluid sim on Canvas2D (ported as-is, framework-agnostic)
 
 interface FluidOptions {
   N?: number;          // grid size (power of 2, default 64)
