@@ -1,0 +1,29 @@
+<svg width="340" height="340" viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>CineMatch</title>
+<desc>A circular dark badge with a film sprocket ring, a violet-to-cyan play triangle at the center, and a small four-point spark accent.</desc>
+<defs>
+<linearGradient id="playGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#a78bfa"/>
+<stop offset="100%" stop-color="#22d3ee"/>
+</linearGradient>
+<linearGradient id="ringGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+<stop offset="0%" stop-color="#312e81"/>
+<stop offset="100%" stop-color="#0d0a1a"/>
+</linearGradient>
+</defs>
+<circle cx="170" cy="170" r="150" fill="#0a0714"/>
+<circle cx="170" cy="170" r="150" fill="none" stroke="url(#ringGrad)" stroke-width="14"/>
+<g fill="#1e1b32">
+<circle cx="170" cy="28" r="9"/>
+<circle cx="277" cy="63" r="9"/>
+<circle cx="312" cy="170" r="9"/>
+<circle cx="277" cy="277" r="9"/>
+<circle cx="170" cy="312" r="9"/>
+<circle cx="63" cy="277" r="9"/>
+<circle cx="28" cy="170" r="9"/>
+<circle cx="63" cy="63" r="9"/>
+</g>
+<circle cx="170" cy="170" r="108" fill="#120d24"/>
+<path d="M134 118 L230 170 L134 222 Z" fill="url(#playGrad)"/>
+<path d="M282 98 L292 120 L314 126 L292 132 L282 154 L272 132 L250 126 L272 120 Z" fill="#22d3ee"/>
+</svg>
