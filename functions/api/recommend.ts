@@ -1,16 +1,16 @@
 /**
  * Cloudflare Pages Function: /api/recommend
  *
- * Receives quiz answers + rating history, builds a structured prompt,
- * runs it through Llama 3.1 8B via Workers AI, and returns a clean JSON
- * array of recommendations.
+ * OPTIONAL enhancement layer. The client-side engine (src/lib/engine.ts +
+ * src/lib/tmdb.ts) is fully self-sufficient and works with this endpoint
+ * absent entirely. This exists only for deployments that want an extra
+ * AI-generated re-ranking pass on top of the live TMDB pool.
  *
- * Binding required in wrangler.jsonc:
- *   { "ai": { "binding": "AI" } }
+ * Requires the Workers AI binding to be enabled for the Pages project in
+ * the Cloudflare dashboard (Settings → Functions → AI binding), not just
+ * declared in wrangler.jsonc — a mismatch here is the most common reason
+ * this endpoint silently 503s.
  */
-
-import { RATING_POOL } from '../../src/lib/data';
-import type { QuizAnswers } from '../../src/lib/types';
 
 interface Env {
   AI: {
@@ -25,162 +25,101 @@ interface Env {
   };
 }
 
-export interface AiRecommendation {
+interface CandidateSummary {
+  id: number;
   title: string;
   year: number;
-  type: 'movie' | 'series';
-  matchPct: number;
-  desc: string;
-  reasons: string[];
+  genres: string[];
+  vibe: string[];
 }
 
 interface RequestBody {
-  quizAnswers: QuizAnswers;
-  ratings: Record<number, number>;
+  preferencesSummary: string;
+  candidates: CandidateSummary[];
 }
 
-// ── Payload builder ────────────────────────────────────────────────────────
-function buildPromptSections(quizAnswers: QuizAnswers, ratings: Record<number, number>) {
-  const prefs: string[] = [];
-
-  if (quizAnswers.mood)
-    prefs.push(`Genre / Mood: ${quizAnswers.mood}`);
-  if (quizAnswers.vibe)
-    prefs.push(`Atmosphere: ${quizAnswers.vibe}`);
-  if (quizAnswers.era && quizAnswers.era !== 'any')
-    prefs.push(`Era preference: ${quizAnswers.era === 'classic' ? 'pre-2000' : quizAnswers.era === 'mid' ? '2000–2015' : '2016 onwards'}`);
-  if (quizAnswers.format && quizAnswers.format !== 'both')
-    prefs.push(`Format: ${quizAnswers.format === 'movie' ? 'Movie (standalone film)' : 'Series (TV show)'}`);
-  if (quizAnswers.language)
-    prefs.push(`Language: ${quizAnswers.language === 'english' ? 'English only' : quizAnswers.language === 'subtitles' ? 'Fine with subtitles' : 'No language preference'}`);
-  if (quizAnswers.company)
-    prefs.push(`Watching with: ${quizAnswers.company}`);
-
-  // Resolve numeric IDs → real titles using RATING_POOL
-  const STAR_LABELS = ['', "didn't like it", 'it was okay', 'liked it', 'really liked it', 'loved it'];
-  const reviews = Object.entries(ratings)
-    .map(([idStr, score]) => {
-      const movie = RATING_POOL.find(m => m.id === Number(idStr));
-      if (!movie) return '';
-      return `  - ${movie.title} (${movie.year}): ${score}/5 — ${STAR_LABELS[score] ?? ''}`;
-    })
-    .filter(Boolean);
-
-  return {
-    preferences: prefs.length ? prefs.join('\n') : 'No specific preferences given.',
-    reviews: reviews.length ? reviews.join('\n') : 'No titles rated.',
-  };
-}
-
-// ── CORS headers ───────────────────────────────────────────────────────────
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
+  'Content-Type': 'application/json',
 };
 
-// ── Worker entry point ─────────────────────────────────────────────────────
-export const onRequestPost: (ctx: { request: Request; env: Env }) => Promise<Response> =
-  async ({ request, env }) => {
-    // Validate AI binding exists
-    if (!env.AI) {
-      return Response.json(
-        { error: 'AI binding not configured. Add "ai" binding in wrangler.jsonc.' },
-        { status: 503, headers: CORS }
-      );
-    }
+const MAX_CANDIDATES = 40;
 
-    let body: RequestBody;
-    try {
-      body = (await request.json()) as RequestBody;
-    } catch {
-      return Response.json({ error: 'Invalid JSON body.' }, { status: 400, headers: CORS });
-    }
+export const onRequestPost: (ctx: { request: Request; env: Env }) => Promise<Response> = async ({
+  request,
+  env,
+}) => {
+  if (!env.AI) {
+    return Response.json(
+      { error: 'AI binding not configured for this deployment.' },
+      { status: 503, headers: CORS }
+    );
+  }
 
-    const { quizAnswers = {}, ratings = {} } = body;
-    const { preferences, reviews } = buildPromptSections(quizAnswers, ratings);
+  let body: RequestBody;
+  try {
+    body = (await request.json()) as RequestBody;
+  } catch {
+    return Response.json({ error: 'Invalid JSON body.' }, { status: 400, headers: CORS });
+  }
 
-    // ── Prompts ──────────────────────────────────────────────────────────
-    const systemPrompt = `You are the recommendation engine for CineMatch, a precision film and TV discovery app.
-Your role is to analyse a user's quiz preferences alongside their historical ratings to surface personalised recommendations.
+  const candidates = (body.candidates ?? []).slice(0, MAX_CANDIDATES);
+  if (candidates.length === 0) {
+    return Response.json({ error: 'No candidates provided.' }, { status: 400, headers: CORS });
+  }
 
-Rules:
-- Infer latent tastes from ratings: e.g. high scores on psychological thrillers → prioritise tension and moral complexity.
-- Never recommend any title the user has already rated.
-- Balance explicit preferences (genre, era, language) with inferred taste signals from ratings.
-- Keep descriptions concise, punchy, and spoiler-free (≤ 20 words each).
-- Reasons must be specific to this user's inputs — never generic phrases like "great film".
+  const candidateList = candidates
+    .map((c) => `- id:${c.id} "${c.title}" (${c.year}) [${[...c.genres, ...c.vibe].join(', ')}]`)
+    .join('\n');
 
-Output ONLY a raw JSON object — no markdown, no explanation, no code fences:
-{
-  "recommendations": [
-    {
-      "title": string,
-      "year": number,
-      "type": "movie" | "series",
-      "matchPct": number,
-      "desc": string,
-      "reasons": string[]
-    }
-  ]
-}
+  const systemPrompt = `You re-rank a pre-filtered candidate list for CineMatch. You never invent titles — you only reorder and briefly explain the ids given. Output ONLY raw JSON, no markdown:
+{ "ranking": [ { "id": number, "reason": string } ] }
+"reason" must be a single specific sentence under 18 words, referencing the user's stated preferences. Include every id from the candidate list exactly once.`;
 
-matchPct must be a number 70–99. reasons must contain exactly 2–3 short strings.`;
+  const userPrompt = `User preferences: ${body.preferencesSummary || 'none stated'}
 
-    const userPrompt = `### USER PREFERENCES
-${preferences}
+Candidates:
+${candidateList}
 
-### USER RATINGS HISTORY
-${reviews}
+Return the ranking, best match first.`;
 
-Return exactly 5 recommendations. Order them from highest to lowest matchPct.`;
+  let rawResponse: string;
+  try {
+    const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 900,
+    });
+    rawResponse = result.response?.trim() ?? '';
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown AI error';
+    return Response.json({ error: `Workers AI call failed: ${msg}` }, { status: 502, headers: CORS });
+  }
 
-    // ── Call Workers AI ───────────────────────────────────────────────────
-    let rawResponse: string;
-    try {
-      const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 900,
-      });
-      rawResponse = result.response?.trim() ?? '';
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown AI error';
-      return Response.json({ error: `Workers AI call failed: ${msg}` }, { status: 502, headers: CORS });
-    }
+  const cleaned = rawResponse
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/, '')
+    .trim();
 
-    // ── Parse & validate JSON ─────────────────────────────────────────────
-    // Strip any accidental markdown fences the model might still emit
-    const cleaned = rawResponse
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/, '')
-      .trim();
+  let parsed: { ranking?: { id: number; reason: string }[] };
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return Response.json(
+      { error: 'AI returned malformed JSON.', raw: cleaned },
+      { status: 422, headers: CORS }
+    );
+  }
 
-    let parsed: { recommendations: AiRecommendation[] };
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      // Return raw text so the client can decide to fall back
-      return Response.json(
-        { error: 'AI returned malformed JSON.', raw: cleaned },
-        { status: 422, headers: CORS }
-      );
-    }
+  const validIds = new Set(candidates.map((c) => c.id));
+  const ranking = (parsed.ranking ?? []).filter((r) => validIds.has(r.id));
 
-    // Clamp matchPct to valid range, guarantee type field is valid
-    parsed.recommendations = (parsed.recommendations ?? []).map(r => ({
-      ...r,
-      matchPct: Math.min(99, Math.max(1, Math.round(r.matchPct ?? 80))),
-      type: r.type === 'series' ? 'series' : 'movie',
-      reasons: (r.reasons ?? []).slice(0, 3),
-    }));
+  return Response.json({ ranking }, { headers: CORS });
+};
 
-    return Response.json(parsed, { headers: CORS });
-  };
-
-// Handle preflight CORS
-export const onRequestOptions: () => Response = () =>
-  new Response(null, { status: 204, headers: CORS });
+export const onRequestOptions: () => Response = () => new Response(null, { status: 204, headers: CORS });
